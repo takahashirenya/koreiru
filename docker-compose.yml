@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: koreiru
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-koreiru_local}
+      POSTGRES_DB: koreiru
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U koreiru -d koreiru"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      DATABASE_URL: postgresql://koreiru:${POSTGRES_PASSWORD:-koreiru_local}@db:5432/koreiru?schema=public
+      HOST: 0.0.0.0
+      PORT: 3001
+      WEB_ORIGIN: http://localhost:5173
+      STORAGE_PATH: /app/storage
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    environment:
+      API_PROXY_TARGET: http://api:3001
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      - api
+  adminer:
+    image: adminer:5
+    profiles: [tools]
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - db
+volumes:
+  database:

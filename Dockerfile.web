@@ -1,0 +1,11 @@
+FROM node:24-bookworm-slim
+WORKDIR /app
+COPY package*.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY packages/shared/package.json packages/shared/
+RUN npm ci
+COPY . .
+RUN npm run build -w @koreiru/shared
+EXPOSE 5173
+CMD ["npm", "run", "dev", "-w", "@koreiru/web", "--", "--host", "0.0.0.0"]

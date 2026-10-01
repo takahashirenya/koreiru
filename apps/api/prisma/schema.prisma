@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum ItemStatus {
+  available
+  reserved
+  given
+}
+enum RequestStatus {
+  pending
+  selected
+  declined
+  cancelled
+}
+model Board {
+  id String @id @default(uuid()) @db.Uuid
+  title String
+  description String @default("")
+  shareTokenHash String @unique
+  adminTokenHash String @unique
+  expiresAt DateTime?
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  items Item[]
+}
+model Item {
+  id String @id @default(uuid()) @db.Uuid
+  boardId String @db.Uuid
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  name String
+  description String @default("")
+  quantity Int @default(1)
+  status ItemStatus @default(available)
+  pickupNote String @default("")
+  createdAt DateTime @default(now())
+  images ItemImage[]
+  requests Request[]
+  @@index([boardId])
+}
+model ItemImage {
+  id String @id @default(uuid()) @db.Uuid
+  itemId String @db.Uuid
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  storageKey String @unique
+  displayOrder Int
+  @@index([itemId])
+}
+model Request {
+  id String @id @default(uuid()) @db.Uuid
+  itemId String @db.Uuid
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  requesterName String
+  contact String
+  message String @default("")
+  status RequestStatus @default(pending)
+  manageTokenHash String @unique
+  createdAt DateTime @default(now())
+  @@index([itemId, status])
+}

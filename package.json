@@ -1,0 +1,42 @@
+{
+  "name": "koreiru",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build -w @koreiru/shared && concurrently -k \"npm run dev -w @koreiru/api\" \"npm run dev -w @koreiru/web\"",
+    "build": "npm run build -w @koreiru/shared && npm run build -w @koreiru/api && npm run build -w @koreiru/web",
+    "test": "npm run build -w @koreiru/shared && vitest run",
+    "db:generate": "npm run db:generate -w @koreiru/api",
+    "db:migrate": "npm run db:migrate -w @koreiru/api",
+    "test:integration": "npm run build -w @koreiru/shared && vitest run --config vitest.integration.config.ts",
+    "db:local": "node scripts/local-db.mjs",
+    "test:local": "node scripts/test-local.mjs",
+    "test:e2e": "node scripts/e2e.mjs",
+    "format": "prettier --write \"apps/*/src/**/*.{ts,tsx}\" \"apps/api/test/**/*.ts\" \"packages/shared/src/**/*.ts\" \"scripts/*.mjs\" \"*.{json,yml,md,ts}\" \"apps/*/*.{json,ts}\" \"packages/shared/*.json\""
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.0.0",
+    "@types/supertest": "^6.0.3",
+    "concurrently": "^9.2.0",
+    "dotenv": "^18.0.5",
+    "embedded-postgres": "^18.4.0-beta.17",
+    "prettier": "^3.9.9",
+    "supertest": "^7.1.0",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0"
+  },
+  "allowScripts": {
+    "@embedded-postgres/linux-x64@18.4.0-beta.17": true,
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "esbuild@0.28.2": true,
+    "prisma@6.19.3": true
+  }
+}
