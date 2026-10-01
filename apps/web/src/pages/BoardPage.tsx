@@ -366,7 +366,7 @@ export function BoardPage({ owner }: { owner: boolean }) {
             </Stack>
             <Typography fontWeight={700}>ボードの内容</Typography>
             <BoardForm
-              key={board.id}
+              key={`${board.id}:${board.ownerLineUrl || ""}`}
               initial={board}
               busy={action.busy}
               submit={(value) =>
@@ -392,6 +392,7 @@ export function BoardPage({ owner }: { owner: boolean }) {
           item={current}
           token={token}
           owner={owner}
+          hasLineContact={board.hasLineContact}
           close={() => setSelected(null)}
           upload={upload}
         />

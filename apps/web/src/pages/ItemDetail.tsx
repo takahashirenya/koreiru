@@ -27,12 +27,14 @@ export function ItemDetail({
   item,
   token,
   owner,
+  hasLineContact,
   close,
   upload,
 }: {
   item: Item;
   token: string;
   owner: boolean;
+  hasLineContact: boolean;
   close: () => void;
   upload: (id: string, files: File[]) => Promise<void>;
 }) {
@@ -378,7 +380,12 @@ export function ItemDetail({
                         label="連絡先（メール・電話番号など）"
                         {...register("contact")}
                         error={!!errors.contact}
-                        helperText={errors.contact?.message}
+                        helperText={
+                          errors.contact?.message ||
+                          (hasLineContact
+                            ? "LINEで相談する場合は、ご自身のLINEの表示名を入力してください。応募後に持ち主のLINEを開けます。"
+                            : undefined)
+                        }
                       />
                       <TextField
                         label="持ち主へのメッセージ"

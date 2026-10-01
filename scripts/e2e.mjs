@@ -7,7 +7,7 @@ import sharp from "sharp";
 import assert from "node:assert/strict";
 config({ path: ".env", quiet: true });
 const dbUrl = new URL(process.env.DATABASE_URL);
-if (!["localhost", "127.0.0.1"].includes(dbUrl.hostname))
+if (!["localhost", "0.0.0.0"].includes(dbUrl.hostname))
   throw new Error("画面テストはローカルDB専用です");
 const browser = await chromium.launch();
 const db = new PrismaClient();
@@ -58,6 +58,17 @@ try {
   await owner
     .getByRole("button", { name: "共有URLをコピー", exact: true })
     .waitFor();
+  const lineUrl = "https://line.me/ti/p/Personal-Test";
+  await owner.getByLabel("持ち主のLINE友だち追加リンク（任意）").fill(lineUrl);
+  await Promise.all([
+    owner.waitForResponse(
+      (response) =>
+        response.url().includes("/api/manage/boards/") &&
+        response.request().method() === "PATCH" &&
+        response.status() === 200,
+    ),
+    owner.getByRole("button", { name: "変更を保存", exact: true }).click(),
+  ]);
   assert.equal(
     await owner
       .getByRole("textbox", { name: "共有URLをコピー", exact: true })
@@ -68,7 +79,15 @@ try {
   const guestContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
   });
+  await guestContext.grantPermissions(["clipboard-read", "clipboard-write"]);
   const guest = await guestContext.newPage();
+  // 実際のLINEへアクセスせず、プロフィールへの遷移だけ検証する。
+  await guest.route(lineUrl, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<h1>LINEプロフィールのテスト画面</h1>",
+    }),
+  );
   guest.on("pageerror", (e) => errors.push(e.message));
   guest.on("dialog", (dialog) => dialog.accept());
   await guest.goto(`http://localhost:5173/share/${saved.shareToken}`);
@@ -82,6 +101,18 @@ try {
   await guest.waitForURL("**/request/**");
   await guest.getByRole("heading", { name: "応募中", exact: true }).waitFor();
   const receiptUrl = guest.url();
+  const lineButton = "メッセージをコピーして、持ち主のLINEを開く";
+  await guest.getByRole("button", { name: lineButton }).click();
+  await guest.waitForURL(lineUrl);
+  const copiedMessage = await guest.evaluate(() =>
+    navigator.clipboard.readText(),
+  );
+  assert.ok(copiedMessage.includes("テスト用の椅子"));
+  assert.ok(copiedMessage.includes("テストの友人"));
+  assert.ok(copiedMessage.includes("大切に使います"));
+  assert.ok(!copiedMessage.includes(receiptUrl.split("/").pop()));
+  await guest.goto(receiptUrl);
+  await guest.getByRole("heading", { name: "応募中", exact: true }).waitFor();
   assert.equal(
     await guest.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -91,6 +122,10 @@ try {
   );
   await guest.getByRole("button", { name: "応募を取り消す" }).click();
   await guest.getByRole("heading", { name: "取り消し済み" }).waitFor();
+  assert.equal(
+    await guest.getByRole("button", { name: lineButton }).count(),
+    0,
+  );
   await guest.goto(`http://localhost:5173/share/${saved.shareToken}`);
   await guest.getByRole("button", { name: "詳細を見る・手を挙げる" }).click();
   await guest.getByLabel("お名前").fill("テストの友人");
@@ -100,6 +135,30 @@ try {
   await guest.getByRole("button", { name: "欲しいです、と伝える" }).click();
   await guest.waitForURL("**/request/**");
   assert.notEqual(guest.url(), receiptUrl);
+  await guest.getByRole("button", { name: lineButton }).waitFor();
+  await guest.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", {
+      configurable: true,
+      value: async () => {
+        throw new Error("clipboard denied");
+      },
+    });
+  });
+  const secondReceiptUrl = guest.url();
+  await guest.getByRole("button", { name: lineButton }).click();
+  await guest.getByText(/コピーできませんでした/).waitFor();
+  assert.equal(guest.url(), secondReceiptUrl);
+  assert.equal(
+    await guest
+      .getByRole("link", { name: "持ち主のLINEを開く", exact: true })
+      .getAttribute("href"),
+    lineUrl,
+  );
+  assert.ok(
+    (await guest.getByLabel("LINEで送る文面").inputValue()).includes(
+      "テスト用の椅子",
+    ),
+  );
   await owner.reload();
   await owner.getByRole("button", { name: /詳細・希望者/ }).click();
   await owner.getByRole("button", { name: "この人に譲る" }).click();
@@ -110,6 +169,10 @@ try {
   await owner.getByText("譲渡済み", { exact: true }).last().waitFor();
   await guest.reload();
   await guest.getByText("受け渡しが完了しました。", { exact: true }).waitFor();
+  assert.equal(
+    await guest.getByRole("button", { name: lineButton }).count(),
+    0,
+  );
   await owner.getByRole("button", { name: "閉じる", exact: true }).click();
   await owner.getByRole("button", { name: "設定・共有" }).click();
   await owner.getByRole("button", { name: "共有を停止する" }).click();
@@ -125,7 +188,7 @@ try {
   await owner.goto("http://localhost:5173");
   await owner.screenshot({ path: "/tmp/koreiru-desktop.png", fullPage: true });
   console.log(
-    "画面テスト成功: 作成・写真追加・共有・応募・取消・相手決定・受渡完了・共有停止・モバイル幅",
+    "画面テスト成功: 作成・写真追加・共有・応募・LINE設定・文面コピー・プロフィール遷移・コピー失敗時の代替操作・取消・相手決定・受渡完了・共有停止・モバイル幅",
   );
 } finally {
   if (boardId) {

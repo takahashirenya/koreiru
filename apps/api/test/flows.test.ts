@@ -46,7 +46,11 @@ describe.sequential("ボードから直接受け渡しまで", () => {
   it("ボードを作成し、生のトークンをDBと共有レスポンスに残さない", async () => {
     const result = await request(server())
       .post("/api/boards")
-      .send({ title: "引っ越し", description: "身内向け" })
+      .send({
+        title: "引っ越し",
+        description: "身内向け",
+        ownerLineUrl: "https://line.me/ti/p/Personal-Test",
+      })
       .expect(201);
     admin = result.body.adminToken;
     share = result.body.shareToken;
@@ -61,8 +65,44 @@ describe.sequential("ボードから直接受け渡しまで", () => {
       .expect(200);
     expect(shared.body.adminTokenHash).toBeUndefined();
     expect(shared.body.shareTokenHash).toBeUndefined();
+    expect(shared.body.ownerLineUrl).toBeUndefined();
+    expect(shared.body.hasLineContact).toBe(true);
+    const owner = await request(server())
+      .get(`/api/manage/boards/${admin}`)
+      .expect(200);
+    expect(owner.body.ownerLineUrl).toBe("https://line.me/ti/p/Personal-Test");
     expect(shared.headers["x-robots-tag"]).toContain("noindex");
     expect(shared.headers["cache-control"]).toBe("no-store");
+  });
+  it("相談先は管理URLから変更・解除でき、不正リンクを拒否する", async () => {
+    await request(server())
+      .patch(`/api/manage/boards/${admin}`)
+      .send({ ownerLineUrl: "https://evil.example/" })
+      .expect(400);
+    await request(server())
+      .patch(`/api/manage/boards/${admin}`)
+      .send({ ownerLineUrl: "https://line.me/ti/p/Updated-Test" })
+      .expect(200);
+    await request(server())
+      .patch(`/api/manage/boards/${admin}`)
+      .send({ description: "LINEで相談できます" })
+      .expect(200);
+    const owner = await request(server())
+      .get(`/api/manage/boards/${admin}`)
+      .expect(200);
+    expect(owner.body.ownerLineUrl).toBe("https://line.me/ti/p/Updated-Test");
+    await request(server())
+      .patch(`/api/manage/boards/${admin}`)
+      .send({ ownerLineUrl: "" })
+      .expect(200);
+    const shared = await request(server())
+      .get(`/api/share/${share}`)
+      .expect(200);
+    expect(shared.body.hasLineContact).toBe(false);
+    await request(server())
+      .patch(`/api/manage/boards/${admin}`)
+      .send({ ownerLineUrl: "https://line.me/ti/p/Personal-Test" })
+      .expect(200);
   });
   it("品物を作り、管理権限なしの編集を拒否する", async () => {
     const result = await request(server())
@@ -134,6 +174,24 @@ describe.sequential("ボードから直接受け渡しまで", () => {
       })
       .expect(201);
     wishA = a.body.requestToken;
+    const receipt = await request(server())
+      .get(`/api/requests/${wishA}`)
+      .expect(200);
+    expect(receipt.body.ownerLineUrl).toBe(
+      "https://line.me/ti/p/Personal-Test",
+    );
+    await request(server())
+      .patch(`/api/manage/boards/${admin}`)
+      .send({ ownerLineUrl: "" })
+      .expect(200);
+    const removed = await request(server())
+      .get(`/api/requests/${wishA}`)
+      .expect(200);
+    expect(removed.body.ownerLineUrl).toBeNull();
+    await request(server())
+      .patch(`/api/manage/boards/${admin}`)
+      .send({ ownerLineUrl: "https://line.me/ti/p/Personal-Test" })
+      .expect(200);
     const b = await request(server())
       .post(`/api/share/${share}/items/${item}/requests`)
       .send({ requesterName: "友人", contact: "friend@example.test" })
@@ -167,6 +225,17 @@ describe.sequential("ボードから直接受け渡しまで", () => {
     const stored = await db.request.findMany({ where: { itemId: item } });
     expect(stored.filter((w) => w.status === "selected")).toHaveLength(1);
     expect(stored.filter((w) => w.status === "declined")).toHaveLength(1);
+    const receipts = await Promise.all(
+      [wishA, wishB].map((token) =>
+        request(server()).get(`/api/requests/${token}`).expect(200),
+      ),
+    );
+    expect(
+      receipts.find((r) => r.body.status === "selected")?.body.ownerLineUrl,
+    ).toBe("https://line.me/ti/p/Personal-Test");
+    expect(
+      receipts.find((r) => r.body.status === "declined")?.body.ownerLineUrl,
+    ).toBeNull();
     await request(server())
       .post(`/api/share/${share}/items/${item}/requests`)
       .send({ requesterName: "第三者", contact: "x" })
@@ -176,6 +245,10 @@ describe.sequential("ボードから直接受け渡しまで", () => {
     const a = await request(server()).get(`/api/requests/${wishA}`).expect(200);
     const selected = a.body.status === "selected" ? wishA : wishB;
     await request(server()).delete(`/api/requests/${selected}`).expect(200);
+    const cancelled = await request(server())
+      .get(`/api/requests/${selected}`)
+      .expect(200);
+    expect(cancelled.body.ownerLineUrl).toBeNull();
     const response = await request(server())
       .get(`/api/share/${share}`)
       .expect(200);

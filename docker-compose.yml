@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-koreiru_local}
       POSTGRES_DB: koreiru
     ports:
-      - "127.0.0.1:5432:5432"
+      - "0.0.0.0:5432:5432"
     volumes:
       - database:/var/lib/postgresql/data
     healthcheck:
@@ -25,7 +25,7 @@ services:
       WEB_ORIGIN: http://localhost:5173
       STORAGE_PATH: /app/storage
     ports:
-      - "127.0.0.1:3001:3001"
+      - "0.0.0.0:3001:3001"
     volumes:
       - ./storage:/app/storage
     depends_on:
@@ -38,14 +38,14 @@ services:
       context: .
       dockerfile: Dockerfile.web
     ports:
-      - "127.0.0.1:5173:5173"
+      - "0.0.0.0:5173:5173"
     depends_on:
       - api
   adminer:
     image: adminer:5
     profiles: [tools]
     ports:
-      - "127.0.0.1:8080:8080"
+      - "0.0.0.0:8080:8080"
     depends_on:
       - db
 volumes:

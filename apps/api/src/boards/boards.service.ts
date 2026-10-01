@@ -32,16 +32,18 @@ export class BoardsService {
   }
   async manage(token: string) {
     const board = await this.access.owner(token);
-    return this.db.board.findUnique({
+    const result = await this.db.board.findUniqueOrThrow({
       where: { id: board.id },
       select: {
         ...publicBoard,
+        ownerLineUrl: true,
         items: {
           select: { ...publicItem, requests: wishes },
           orderBy: { createdAt: "desc" },
         },
       },
     });
+    return { ...result, hasLineContact: !!board.ownerLineUrl };
   }
   async patchBoard(token: string, body: unknown) {
     const data = parse(boardPatchSchema, body);
@@ -70,6 +72,7 @@ export class BoardsService {
     });
     return {
       ...result,
+      hasLineContact: !!board.ownerLineUrl,
       items: result.items.map(({ _count, ...item }) => ({
         ...item,
         requestCount: _count.requests,

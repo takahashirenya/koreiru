@@ -48,7 +48,14 @@ export class RequestsService {
             name: true,
             status: true,
             pickupNote: true,
-            board: { select: { title: true, isActive: true, expiresAt: true } },
+            board: {
+              select: {
+                title: true,
+                isActive: true,
+                expiresAt: true,
+                ownerLineUrl: true,
+              },
+            },
           },
         },
       },
@@ -59,6 +66,10 @@ export class RequestsService {
       ...wish,
       item,
       boardTitle: board.title,
+      ownerLineUrl:
+        ["pending", "selected"].includes(wish.status) && item.status !== "given"
+          ? board.ownerLineUrl
+          : null,
       sharingAvailable:
         board.isActive && (!board.expiresAt || board.expiresAt > new Date()),
     };

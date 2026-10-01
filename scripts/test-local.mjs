@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 const directory = await mkdtemp(join(tmpdir(), "koreiru-test-db-"));
 const port = 55439;
-const url = `postgresql://koreiru:test_local@127.0.0.1:${port}/koreiru_test?schema=public`;
+const url = `postgresql://koreiru:test_local@0.0.0.0:${port}/koreiru_test?schema=public`;
 const pg = new EmbeddedPostgres({
   databaseDir: directory,
   port,
@@ -13,7 +13,7 @@ const pg = new EmbeddedPostgres({
   password: "test_local",
   authMethod: "scram-sha-256",
   persistent: false,
-  postgresFlags: ["-h", "127.0.0.1"],
+  postgresFlags: ["-h", "0.0.0.0"],
   onLog: () => {},
   onError: console.error,
 });

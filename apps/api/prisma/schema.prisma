@@ -20,6 +20,7 @@ model Board {
   id String @id @default(uuid()) @db.Uuid
   title String
   description String @default("")
+  ownerLineUrl String?
   shareTokenHash String @unique
   adminTokenHash String @unique
   expiresAt DateTime?

@@ -6,6 +6,7 @@ import { Application, requestLabels } from "@koreiru/shared";
 import { api, absoluteUrl } from "../../api/client";
 import { useAction } from "../../hooks/useAction";
 import { CopyLink, LoadingError, Status } from "../../components/Ui";
+import { LineContact } from "../../features/requests/LineContact";
 export function RequestPage() {
   const { token = "" } = useParams(),
     action = useAction();
@@ -51,9 +52,13 @@ export function RequestPage() {
           {wish.item.status === "given"
             ? "受け渡しが完了しました。"
             : wish.status === "selected"
-              ? "持ち主があなたを選びました。受け渡しについては、持ち主からの連絡をお待ちください。"
+              ? wish.ownerLineUrl
+                ? "持ち主があなたを選びました。下のボタンからLINEで受け渡しについて相談できます。"
+                : "持ち主があなたを選びました。受け渡しについては、持ち主からの連絡をお待ちください。"
               : wish.status === "pending"
-                ? "応募を受け付けました。選ばれた場合は、入力した連絡先で持ち主と直接やりとりします。"
+                ? wish.ownerLineUrl
+                  ? "応募を受け付けました。下のボタンから持ち主にLINEで連絡できます。譲る相手は持ち主が決定します。"
+                  : "応募を受け付けました。選ばれた場合は、入力した連絡先で持ち主と直接やりとりします。"
                 : wish.status === "cancelled"
                   ? "応募を取り消しました。"
                   : "この応募の受付は終了しました。"}
@@ -71,6 +76,17 @@ export function RequestPage() {
             受け渡し：{wish.item.pickupNote}
           </Typography>
         )}
+        {wish.ownerLineUrl &&
+          ["pending", "selected"].includes(wish.status) &&
+          wish.item.status !== "given" && (
+            <LineContact
+              url={wish.ownerLineUrl}
+              boardTitle={wish.boardTitle}
+              itemName={wish.item.name}
+              requesterName={wish.requesterName}
+              message={wish.message}
+            />
+          )}
         <Typography fontWeight={700}>応募確認・取り消しURL</Typography>
         <CopyLink value={absoluteUrl(`/request/${token}`)} />
         <Typography variant="caption" color="text.secondary">

@@ -18,14 +18,44 @@ export const requestLabels = {
   cancelled: "取り消し済み",
 };
 const text = (max: number) => z.string().trim().max(max);
+export function isPersonalLineUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "line.me" &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      !url.search &&
+      !url.hash &&
+      /^\/(?:R\/)?ti\/p\/[A-Za-z0-9_~-]+\/?$/.test(url.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+export const ownerLineUrlSchema = z
+  .string()
+  .trim()
+  .max(1000)
+  .refine(
+    (value) => !value || isPersonalLineUrl(value),
+    "LINEの「マイQRコード」からコピーした友だち追加リンク（https://line.me/ti/p/...）を入力してください",
+  )
+  .transform((value) => value || null)
+  .nullable()
+  .default(null);
 export const boardSchema = z.object({
   title: text(100).min(1, "ボード名を入力してください"),
   description: text(2000).default(""),
   expiresAt: z.string().datetime().nullable().optional(),
+  ownerLineUrl: ownerLineUrlSchema,
 });
 export const boardPatchSchema = boardSchema
   .partial()
   .extend({ isActive: z.boolean().optional() });
+export type BoardInput = z.input<typeof boardSchema>;
 export const itemSchema = z.object({
   name: text(100).min(1, "品物名を入力してください"),
   description: text(3000).default(""),
@@ -68,6 +98,8 @@ export type Board = {
   description: string;
   expiresAt: string | null;
   isActive: boolean;
+  hasLineContact: boolean;
+  ownerLineUrl?: string | null;
   items: Item[];
 };
 export type Application = {
@@ -80,4 +112,5 @@ export type Application = {
   item: Pick<Item, "id" | "name" | "status" | "pickupNote">;
   boardTitle: string;
   sharingAvailable: boolean;
+  ownerLineUrl: string | null;
 };

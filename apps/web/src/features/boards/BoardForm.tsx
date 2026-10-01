@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { boardSchema } from "@koreiru/shared";
+import { boardSchema, BoardInput } from "@koreiru/shared";
 import { Button, Stack, TextField, Alert } from "@mui/material";
 export function BoardForm({
   submit,
@@ -9,17 +9,23 @@ export function BoardForm({
 }: {
   submit: (value: unknown) => Promise<void>;
   busy: boolean;
-  initial?: { title: string; description: string; expiresAt: string | null };
+  initial?: {
+    title: string;
+    description: string;
+    expiresAt: string | null;
+    ownerLineUrl?: string | null;
+  };
 }) {
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm({
+  } = useForm<BoardInput>({
     resolver: zodResolver(boardSchema),
     defaultValues: {
       title: initial?.title || "",
       description: initial?.description || "",
+      ownerLineUrl: initial?.ownerLineUrl || "",
     },
   });
   return (
@@ -46,6 +52,16 @@ export function BoardForm({
         {...register("description")}
         error={!!errors.description}
         helperText={errors.description?.message}
+      />
+      <TextField
+        label="持ち主のLINE友だち追加リンク（任意）"
+        placeholder="https://line.me/ti/p/..."
+        {...register("ownerLineUrl")}
+        error={!!errors.ownerLineUrl}
+        helperText={
+          errors.ownerLineUrl?.message ||
+          "LINEの「マイQRコード」→「リンクをコピー」で取得できます。空欄で保存すると解除できます。応募した人に相談先として表示します。"
+        }
       />
       <Alert severity="info">
         管理URLを知っている人はボードを編集できます。共有URLと区別して、ご自身だけで保管してください。
