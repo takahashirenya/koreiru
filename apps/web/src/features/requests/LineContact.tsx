@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Alert, Button, Stack, TextField, Typography } from "@mui/material";
 import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
 import { isPersonalLineUrl } from "@koreiru/shared";
+import { copyText } from "../../utils/clipboard";
 
 export function LineContact({
   url,
@@ -18,6 +19,7 @@ export function LineContact({
 }) {
   const [busy, setBusy] = useState(false);
   const [copyError, setCopyError] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const text = `koreiru「${boardTitle}」の「${itemName}」に応募した${requesterName}です。\n受け渡しについて相談できますか？${message ? `\n\n${message}` : ""}`;
   if (!isPersonalLineUrl(url)) return null;
   return (
@@ -37,10 +39,12 @@ export function LineContact({
       <TextField
         label="LINEで送る文面"
         value={text}
+        inputRef={inputRef}
         multiline
         minRows={3}
         maxRows={8}
         slotProps={{ input: { readOnly: true } }}
+        sx={{ "& .MuiInputBase-input": { fontSize: 16 } }}
         onFocus={(event) => {
           const input = event.target as HTMLTextAreaElement;
           input.select();
@@ -59,7 +63,7 @@ export function LineContact({
           setBusy(true);
           setCopyError(false);
           try {
-            await navigator.clipboard.writeText(text);
+            await copyText(text, inputRef.current);
             window.location.assign(url);
           } catch {
             setCopyError(true);

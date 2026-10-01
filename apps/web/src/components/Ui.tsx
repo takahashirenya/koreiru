@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import ContentCopyRounded from "@mui/icons-material/ContentCopyRounded";
 import { ItemStatus, statusLabels } from "@koreiru/shared";
+import { copyText } from "../utils/clipboard";
 export function Status({ status }: { status: ItemStatus }) {
   return (
     <Chip
@@ -41,16 +42,18 @@ export function CopyLink({
 }) {
   const [copied, setCopied] = useState(false),
     [error, setError] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   return (
     <Stack spacing={1}>
       <Button
         variant="outlined"
         startIcon={<ContentCopyRounded />}
         onClick={async () => {
+          setCopied(false);
+          setError(false);
           try {
-            await navigator.clipboard.writeText(value);
+            await copyText(value, inputRef.current);
             setCopied(true);
-            setError(false);
           } catch {
             setError(true);
           }
@@ -59,10 +62,13 @@ export function CopyLink({
         {copied ? "コピーしました" : label}
       </Button>
       {error && (
-        <Alert severity="info">以下のURLを選択してコピーしてください。</Alert>
+        <Alert severity="warning" role="alert">
+          コピーできませんでした。以下のURLを長押ししてコピーしてください。
+        </Alert>
       )}
       <Box
         component="input"
+        ref={inputRef}
         readOnly
         aria-label={label}
         value={value}
@@ -73,7 +79,8 @@ export function CopyLink({
           bgcolor: "#f5f7f3",
           border: "1px solid #dee5dc",
           borderRadius: 1,
-          fontSize: 12,
+          // iPhoneの入力欄フォーカスによる自動拡大を防ぐ。
+          fontSize: 16,
           color: "text.secondary",
           boxSizing: "border-box",
         }}

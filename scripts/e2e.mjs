@@ -17,6 +17,7 @@ try {
     viewport: { width: 1440, height: 1000 },
   });
   const owner = await ownerContext.newPage();
+  await ownerContext.grantPermissions(["clipboard-read", "clipboard-write"]);
   const errors = [];
   owner.on("pageerror", (e) => errors.push(e.message));
   owner.on("dialog", (dialog) => dialog.accept());
@@ -75,6 +76,59 @@ try {
       .inputValue(),
     `http://localhost:5173/share/${saved.shareToken}`,
   );
+  await owner
+    .getByRole("button", { name: "共有URLをコピー", exact: true })
+    .click();
+  await owner.getByRole("button", { name: "コピーしました" }).waitFor();
+  const sharedUrl = await owner.evaluate(() => navigator.clipboard.readText());
+  assert.equal(sharedUrl, `http://localhost:5173/share/${saved.shareToken}`);
+  // スマホのHTTP接続と権限拒否で、以前のLINE URLが残らないことを確認する。
+  for (const unavailable of [true, false]) {
+    await owner.evaluate(
+      async ({ lineUrl, unavailable }) => {
+        await navigator.clipboard.writeText(lineUrl);
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: unavailable
+            ? undefined
+            : {
+                writeText: async () => {
+                  throw new Error("clipboard denied");
+                },
+              },
+        });
+      },
+      { lineUrl, unavailable },
+    );
+    await owner.getByRole("button", { name: "コピーしました" }).click();
+    await owner.getByRole("button", { name: "コピーしました" }).waitFor();
+    await owner.evaluate(() => delete navigator.clipboard);
+    assert.equal(
+      await owner.evaluate(() => navigator.clipboard.readText()),
+      sharedUrl,
+      "代替コピーで以前のLINE URLを共有URLに置き換える",
+    );
+  }
+  await owner.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: () => false,
+    });
+  });
+  await owner.getByRole("button", { name: "コピーしました" }).click();
+  await owner.getByText(/以下のURLを長押ししてコピーしてください/).waitFor();
+  assert.equal(
+    await owner.getByRole("button", { name: "コピーしました" }).count(),
+    0,
+  );
+  await owner.evaluate(() => {
+    delete navigator.clipboard;
+    delete document.execCommand;
+  });
   await owner.keyboard.press("Escape");
   const guestContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -90,7 +144,19 @@ try {
   );
   guest.on("pageerror", (e) => errors.push(e.message));
   guest.on("dialog", (dialog) => dialog.accept());
-  await guest.goto(`http://localhost:5173/share/${saved.shareToken}`);
+  const lineRequests = [];
+  guest.on("request", (request) => {
+    if (new URL(request.url()).hostname === "line.me")
+      lineRequests.push(request.url());
+  });
+  await guest.goto(sharedUrl);
+  await guest
+    .getByRole("heading", { name: "画面テストの譲渡ボード", exact: true })
+    .waitFor();
+  await guest.reload();
+  await guest.getByRole("heading", { name: "テスト用の椅子" }).waitFor();
+  assert.equal(guest.url(), sharedUrl, "共有URLは共有画面に留まる");
+  assert.deepEqual(lineRequests, [], "共有URLを開いてもLINEに接続しない");
   await guest.getByRole("button", { name: "詳細を見る・手を挙げる" }).click();
   await guest.getByLabel("お名前").fill("テストの友人");
   await guest
@@ -111,6 +177,30 @@ try {
   assert.ok(copiedMessage.includes("テストの友人"));
   assert.ok(copiedMessage.includes("大切に使います"));
   assert.ok(!copiedMessage.includes(receiptUrl.split("/").pop()));
+  for (const unavailable of [true, false]) {
+    await guest.goto(receiptUrl);
+    await guest.getByRole("button", { name: lineButton }).waitFor();
+    await guest.evaluate(async (unavailable) => {
+      await navigator.clipboard.writeText("コピー前の文面");
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: unavailable
+          ? undefined
+          : {
+              writeText: async () => {
+                throw new Error("clipboard denied");
+              },
+            },
+      });
+    }, unavailable);
+    await guest.getByRole("button", { name: lineButton }).click();
+    await guest.waitForURL(lineUrl);
+    assert.equal(
+      await guest.evaluate(() => navigator.clipboard.readText()),
+      copiedMessage,
+      "メッセージも代替コピーしてからLINEを開く",
+    );
+  }
   await guest.goto(receiptUrl);
   await guest.getByRole("heading", { name: "応募中", exact: true }).waitFor();
   assert.equal(
@@ -137,6 +227,10 @@ try {
   assert.notEqual(guest.url(), receiptUrl);
   await guest.getByRole("button", { name: lineButton }).waitFor();
   await guest.evaluate(() => {
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: () => false,
+    });
     Object.defineProperty(navigator.clipboard, "writeText", {
       configurable: true,
       value: async () => {
